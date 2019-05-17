@@ -28,7 +28,7 @@ export abstract class TransactionHandler implements ITransactionHandler {
     public verify(transaction: Interfaces.ITransaction, walletManager: State.IWalletManager): boolean {
         const senderWallet: State.IWallet = walletManager.findByPublicKey(transaction.data.senderPublicKey);
 
-        if (senderWallet.multisignature) {
+        if (senderWallet.hasMultiSignature()) {
             transaction.isVerified = senderWallet.verifySignatures(transaction.data);
         }
 
@@ -59,17 +59,18 @@ export abstract class TransactionHandler implements ITransactionHandler {
             throw new SenderWalletMismatchError();
         }
 
-        if (wallet.secondPublicKey) {
+        if (wallet.hasSecondSignature()) {
             // Ensure the database wallet already has a 2nd signature, in case we checked a pool wallet.
             const databaseWallet: State.IWallet = databaseWalletManager.findByPublicKey(
                 transaction.data.senderPublicKey,
             );
 
-            if (!databaseWallet.secondPublicKey) {
+            if (!databaseWallet.hasSecondSignature()) {
                 throw new UnexpectedSecondSignatureError();
             }
 
-            if (!Transactions.Verifier.verifySecondSignature(data, wallet.secondPublicKey)) {
+            const secondPublicKey: string = wallet.getExtraAttribute("secondPublicKey");
+            if (!Transactions.Verifier.verifySecondSignature(data, secondPublicKey)) {
                 throw new InvalidSecondSignatureError();
             }
         } else if (data.secondSignature || data.signSignature) {
@@ -81,16 +82,16 @@ export abstract class TransactionHandler implements ITransactionHandler {
             }
         }
 
-        if (wallet.multisignature) {
+        if (wallet.hasMultiSignature()) {
             // Ensure the database wallet already has a multi signature, in case we checked a pool wallet.
             const databaseWallet: State.IWallet = databaseWalletManager.findByPublicKey(
                 transaction.data.senderPublicKey,
             );
 
-            if (!databaseWallet.multisignature) {
+            if (!databaseWallet.hasMultiSignature()) {
                 throw new UnexpectedMultiSignatureError();
             }
-            if (!wallet.verifySignatures(data, wallet.multisignature)) {
+            if (!wallet.verifySignatures(data, wallet.getExtraAttribute("multiSignature"))) {
                 throw new InvalidMultiSignatureError();
             }
         } else if (transaction.type !== Enums.TransactionTypes.MultiSignature && transaction.data.signatures) {
